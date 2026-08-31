@@ -1,0 +1,58 @@
+[package]
+name = "lightsync"
+version = "0.1.0"
+description = "Local-only RGB controller for Govee (and friends) over LAN — SignalRGB replacement."
+authors = ["Jackson Hughes"]
+edition = "2024"
+
+[lib]
+name = "lightsync_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "lightsync"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# Tauri 2 runtime + IPC
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+
+# Async runtime + UDP
+tokio = { version = "1", features = ["full"] }
+socket2 = "0.5"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Error handling / utilities
+anyhow = "1"
+thiserror = "1"
+parking_lot = "0.12"
+log = "0.4"
+env_logger = "0.11"
+
+# HTTP server (LAN control, off by default)
+axum = "0.7"
+tower = "0.5"
+
+# Windows-only: DXGI Desktop Duplication
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Dxgi",
+    "Win32_Graphics_Dxgi_Common",
+    "Win32_Graphics_Gdi",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[features]
+# this feature is used for production builds or when `devPath` points to the filesystem
+# DO NOT REMOVE!!
+custom-protocol = ["tauri/custom-protocol"]

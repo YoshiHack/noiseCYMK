@@ -1,0 +1,23 @@
+# Frontend
+node_modules/
+dist/
+.vite/
+tsconfig.tsbuildinfo
+
+# Rust / Tauri
+src-tauri/target/
+src-tauri/Cargo.lock
+src-tauri/gen/
+
+# Workspace root
+/target/
+/Cargo.lock
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+*.swp
