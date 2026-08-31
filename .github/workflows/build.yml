@@ -12,14 +12,30 @@ jobs:
     runs-on: windows-latest
 
     steps:
+      - name: Print runner info
+        shell: bash
+        run: |
+          echo "=== runner OS ==="
+          systeminfo | head -3
+          echo "=== rustc ==="
+          rustc --version
+          cargo --version
+          echo "=== node ==="
+          node --version
+          npm --version
+          echo "=== target ==="
+          rustup target list --installed
+          echo "=== WiX ==="
+          ls "/c/Program Files (x86)/WiX Toolset v3.14/bin/" 2>&1 || echo "WiX not found"
+          echo "=== NSIS ==="
+          which makensis || echo "makensis not in PATH"
+
       - uses: actions/checkout@v4
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-pc-windows-msvc
 
-      - name: Cache cargo
+      - name: Cache cargo registry
         uses: actions/cache@v4
         with:
           path: |
@@ -38,36 +54,42 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
-      - name: Run cargo test (Linux-compilable core)
+      - name: Run cargo test (lib only, no Tauri build)
         working-directory: src-tauri
         run: cargo test --lib
 
       - name: Build frontend
         run: npm run build
 
-      - name: Build MSI installer
-        uses: tauri-apps/tauri-action@v0
-        with:
-          args: --bundles msi nsis
-
-      - name: Verify bundle output exists
+      - name: Verify dist
         shell: bash
         run: |
-          echo "=== cargo build artifacts ==="
-          find src-tauri/target/release -maxdepth 2 -name "lightsync.exe" -o -name "lightsync" 2>/dev/null || echo "no exe"
-          echo "=== bundle directory tree ==="
-          if [ -d "src-tauri/target/release/bundle" ]; then
-            ls -laR src-tauri/target/release/bundle/ 2>&1 | head -80
-          else
-            echo "BUNDLE DIR DOES NOT EXIST: src-tauri/target/release/bundle"
-          fi
-          echo "=== tauri.conf.json bundle config ==="
-          cat src-tauri/tauri.conf.json | python3 -c "import json,sys; print(json.load(sys.stdin)['bundle'])"
-          echo "=== which wix / nsis tools ==="
-          which wix candle light 2>/dev/null || echo "no wix"
-          which makensis 2>/dev/null || echo "no makensis"
-          echo "=== last 80 lines of any Cargo stderr in target ==="
-          find src-tauri/target/release -name "stderr" 2>/dev/null | head -5 | while read f; do echo "-- $f --"; tail -20 "$f"; done
+          echo "=== dist directory ==="
+          ls -la dist/ 2>&1 || { echo "DIST MISSING"; exit 1; }
+          ls -la dist/assets/ 2>&1
+
+      - name: Build Tauri app (release)
+        working-directory: src-tauri
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -x
+          echo "=== starting cargo build --release ==="
+          cargo build --release --verbose 2>&1 | tail -200
+          echo "=== build complete, looking for exe ==="
+          find target/release -maxdepth 2 -name "lightsync.exe" 2>&1 || true
+          ls -la target/release/ 2>&1 | head -30
+
+      - name: Run Tauri bundle
+        working-directory: src-tauri
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -x
+          echo "=== running cargo tauri build ==="
+          cargo tauri build --bundles msi nsis 2>&1 | tail -200 || { echo "TAURI BUILD FAILED"; exit 1; }
+          echo "=== bundle dir tree ==="
+          ls -laR target/release/bundle/ 2>&1 | head -100
 
       - name: Upload MSI artifact
         if: always()
@@ -77,7 +99,7 @@ jobs:
           path: src-tauri/target/release/bundle/msi/*.msi
           if-no-files-found: error
 
-      - name: Upload NSIS installer
+      - name: Upload NSIS artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
