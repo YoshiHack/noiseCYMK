@@ -53,10 +53,21 @@ jobs:
       - name: Verify bundle output exists
         shell: bash
         run: |
-          echo "=== bundle directory ==="
-          ls -la src-tauri/target/release/bundle/ 2>&1 || echo "NO BUNDLE DIR"
-          echo "=== MSI files ==="
-          find src-tauri/target/release/bundle -name "*.msi" -o -name "*.exe" 2>&1 | head -20 || true
+          echo "=== cargo build artifacts ==="
+          find src-tauri/target/release -maxdepth 2 -name "lightsync.exe" -o -name "lightsync" 2>/dev/null || echo "no exe"
+          echo "=== bundle directory tree ==="
+          if [ -d "src-tauri/target/release/bundle" ]; then
+            ls -laR src-tauri/target/release/bundle/ 2>&1 | head -80
+          else
+            echo "BUNDLE DIR DOES NOT EXIST: src-tauri/target/release/bundle"
+          fi
+          echo "=== tauri.conf.json bundle config ==="
+          cat src-tauri/tauri.conf.json | python3 -c "import json,sys; print(json.load(sys.stdin)['bundle'])"
+          echo "=== which wix / nsis tools ==="
+          which wix candle light 2>/dev/null || echo "no wix"
+          which makensis 2>/dev/null || echo "no makensis"
+          echo "=== last 80 lines of any Cargo stderr in target ==="
+          find src-tauri/target/release -name "stderr" 2>/dev/null | head -5 | while read f; do echo "-- $f --"; tail -20 "$f"; done
 
       - name: Upload MSI artifact
         if: always()
