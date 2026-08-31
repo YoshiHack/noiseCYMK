@@ -4,47 +4,42 @@
 //! path used by OBS, NVIDIA ShadowPlay, and Discord's screen share —
 //! it can see fullscreen DX12 games where GDI cannot.
 //!
-//! Stubbed on non-Windows; `is_available()` always returns false there.
+//! **Status:** scaffold only. The full implementation lives in Phase 2 of
+//! PLAN.md. For now, `DxgiCapture::new()` returns an error pointing the
+//! caller to the Microsoft Desktop Duplication sample.
+//!
+//! Stubbed on non-Windows so the rest of the project still compiles and
+// tests cleanly on Linux/macOS.
 
 #[cfg(target_os = "windows")]
 mod imp {
     use super::super::CapturedFrame;
-    use anyhow::{Context, Result};
-    use windows::Win32::Graphics::Dxgi::Common::DXGI_FORMAT_B8G8R8A8_UNORM;
+    use anyhow::{anyhow, Result};
 
     pub struct DxgiCapture {
-        // Real implementation would hold IDXGIOutputDuplication, etc.
-        // For now, this stub compiles and returns "not yet implemented".
         _priv: (),
     }
 
     impl DxgiCapture {
         pub fn new() -> Result<Self> {
-            // Real work: enumerate adapters, find primary output, create
-            // duplication, grab a frame. See
-            // https://learn.microsoft.com/en-us/windows/win32/direct3ddxgi/desktop-duplication-api
-            // for the canonical example.
-            Err(anyhow::anyhow!(
-                "DXGI capture: real implementation lives here; \
-                 see PLAN.md Phase 2 for the reference walkthrough"
+            Err(anyhow!(
+                "DXGI Desktop Duplication: real implementation lives here; \
+                 see PLAN.md Phase 2 and the Microsoft Desktop Duplication \
+                 API sample at \
+                 https://learn.microsoft.com/windows/win32/direct3ddxgi/desktop-duplication-api"
             ))
-            .map(|_| Self { _priv: () })
         }
 
         pub fn grab_frame(&mut self) -> Result<CapturedFrame> {
-            Err(anyhow::anyhow!("not yet implemented"))
-        }
-
-        pub fn format_supported(_f: DXGI_FORMAT_B8G8R8A8_UNORM) -> bool {
-            true
+            Err(anyhow!("DXGI capture not yet implemented"))
         }
     }
 }
 
 #[cfg(not(target_os = "windows"))]
 mod imp {
-    use anyhow::Result;
     use super::super::CapturedFrame;
+    use anyhow::{anyhow, Result};
 
     pub struct DxgiCapture;
 
@@ -54,7 +49,7 @@ mod imp {
         }
 
         pub fn grab_frame(&mut self) -> Result<CapturedFrame> {
-            Err(anyhow::anyhow!("DXGI is Windows-only; rebuild on Windows"))
+            Err(anyhow!("DXGI is Windows-only; rebuild on Windows"))
         }
     }
 }
