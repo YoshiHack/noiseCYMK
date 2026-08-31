@@ -71,15 +71,13 @@ jobs:
       - name: Build Tauri app (release)
         working-directory: src-tauri
         shell: bash
+        env:
+          CARGO_TARGET_DIR: src-tauri/target
         run: |
           set -euo pipefail
           set -x
-          # Pin --target-dir to src-tauri/target so it matches Tauri CLI
-          # expectations and our artifact upload globs. (Without this, cargo
-          # walks up to the workspace root and writes target/ there.)
           echo "=== starting cargo build --release ==="
-          cargo build --release --verbose --target-dir src-tauri/target 2>&1 | tee /tmp/cargo-build.log | tail -100
-          echo "=== full cargo log saved to /tmp/cargo-build.log ==="
+          cargo build --release --verbose 2>&1 | tee /tmp/cargo-build.log | tail -100
           echo "=== build complete, looking for exe ==="
           find src-tauri/target/release -maxdepth 2 -name "lightsync.exe" 2>&1 || true
           ls -la src-tauri/target/release/ 2>&1 | head -30 || true
@@ -87,11 +85,15 @@ jobs:
       - name: Run Tauri bundle
         working-directory: src-tauri
         shell: bash
+        env:
+          CARGO_TARGET_DIR: src-tauri/target
         run: |
           set -euo pipefail
           set -x
+          echo "=== cargo-tauri version ==="
+          cargo tauri --version 2>&1 || true
           echo "=== running cargo tauri build ==="
-          cargo tauri build --bundles msi nsis --target-dir src-tauri/target 2>&1 | tee /tmp/tauri-build.log | tail -200 || { echo "TAURI BUILD FAILED"; echo "=== last 300 lines of tauri log ==="; tail -300 /tmp/tauri-build.log; exit 1; }
+          cargo tauri build --bundles msi nsis 2>&1 | tee /tmp/tauri-build.log | tail -200 || { echo "TAURI BUILD FAILED"; echo "=== last 300 lines of tauri log ==="; tail -300 /tmp/tauri-build.log; exit 1; }
           echo "=== bundle dir tree ==="
           ls -laR src-tauri/target/release/bundle/ 2>&1 | head -100
 
