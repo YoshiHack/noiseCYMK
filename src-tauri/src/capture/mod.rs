@@ -2,22 +2,22 @@
 //!
 //! Provides:
 //! - `sampler` — gamma-correct BGRA → ColorZone averaging (cross-platform)
-//! - `dxgi` — DXGI Desktop Duplication wrapper (Windows only, feature-gated)
 //! - `xcap` — xcap-based capture for Linux/macOS development
+//! - `screenshots_win` — screenshots-crate-based capture for Windows
 //! - `ScreenCapture` — cross-platform enum that picks the right backend
 //!
-//! The `dxgi` module is gated behind the `windows-capture` cargo feature
-//! so the lib + tests can build on Windows CI without dragging the full
-//! `windows` crate into the test binary. The main app binary turns the
-//! feature on via `--features windows-capture`.
+//! On Linux/macOS we use `xcap`; on Windows we use `screenshots`.
+//! Both crates expose a similar interface and avoid dragging the full
+//! `windows` crate into our build, which keeps the project portable
+//! and avoids version conflicts with Tauri's own windows-rs usage.
 
 pub mod sampler;
 
-#[cfg(all(target_os = "windows", feature = "windows-capture"))]
-pub mod dxgi;
-
 #[cfg(not(target_os = "windows"))]
 pub mod xcap;
+
+#[cfg(target_os = "windows")]
+pub mod screenshots_win;
 
 use anyhow::Result;
 use thiserror::Error;
@@ -38,10 +38,6 @@ pub struct CapturedFrame {
 pub enum CaptureError {
     #[error("screen capture not supported on this platform")]
     Unsupported,
-    #[error("DXGI capture not compiled in — rebuild with `--features windows-capture`")]
-    DxgiNotCompiled,
-    #[error("DXGI session lost — recreate capture")]
-    DxgiLost,
     #[error("capture timed out — no new frame")]
     Timeout,
     #[error("capture failed: {0}")]
@@ -55,36 +51,26 @@ impl From<anyhow::Error> for CaptureError {
 }
 
 /// Cross-platform screen-capture entry point used by the screen-sync
-/// effect. Picks the right backend at runtime based on cfg + feature flags.
+/// effect. Picks the right backend at runtime based on cfg.
 #[allow(clippy::large_enum_variant)]
 pub enum ScreenCapture {
-    #[cfg(all(target_os = "windows", feature = "windows-capture"))]
-    Dxgi(dxgi::DxgiCapture),
     #[cfg(not(target_os = "windows"))]
     Xcap(xcap::XCap),
+    #[cfg(target_os = "windows")]
+    Screenshots(screenshots_win::ScreenshotsCapture),
 }
 
 impl ScreenCapture {
-    /// Build a screen capture for the primary monitor. Returns
-    /// `Err(CaptureError::Unsupported)` on Windows when the
-    /// `windows-capture` feature is off (this should only happen in
-    /// tests on Windows; the app binary turns the feature on).
+    /// Build a screen capture for the primary monitor.
     pub fn new() -> Result<Self> {
-        #[cfg(all(target_os = "windows", feature = "windows-capture"))]
-        {
-            Ok(ScreenCapture::Dxgi(dxgi::DxgiCapture::new()?))
-        }
         #[cfg(not(target_os = "windows"))]
         {
             Ok(ScreenCapture::Xcap(xcap::XCap::new()?))
         }
-        #[cfg(all(target_os = "windows", not(feature = "windows-capture")))]
+        #[cfg(target_os = "windows")]
         {
-            // Tests-only path: the lib was built without windows-capture,
-            // so we can't construct a DXGI capture. Caller gets a clear
-            // error rather than a confusing linker failure.
-            Err(anyhow::anyhow!(
-                "screen capture disabled: rebuild with `--features windows-capture`"
+            Ok(ScreenCapture::Screenshots(
+                screenshots_win::ScreenshotsCapture::new()?,
             ))
         }
     }
@@ -93,28 +79,19 @@ impl ScreenCapture {
     /// frame, or a typed error on timeout / platform failure.
     pub fn grab_frame(&mut self) -> Result<CapturedFrame, CaptureError> {
         match self {
-            #[cfg(all(target_os = "windows", feature = "windows-capture"))]
-            ScreenCapture::Dxgi(c) => match c.grab_frame() {
-                Ok(f) => Ok(f),
-                Err(e) => {
-                    let msg = e.to_string();
-                    if msg.contains("timeout") {
-                        Err(CaptureError::Timeout)
-                    } else if msg.contains("session") || msg.contains("lost") {
-                        Err(CaptureError::DxgiLost)
-                    } else {
-                        Err(CaptureError::Other(msg))
-                    }
-                }
-            },
             #[cfg(not(target_os = "windows"))]
             ScreenCapture::Xcap(c) => match c.grab_frame() {
                 Ok(f) => Ok(f),
                 Err(xcap::XCapError::Timeout) => Err(CaptureError::Timeout),
                 Err(other) => Err(CaptureError::Other(other.to_string())),
             },
+            #[cfg(target_os = "windows")]
+            ScreenCapture::Screenshots(c) => match c.grab_frame() {
+                Ok(f) => Ok(f),
+                Err(e) => Err(CaptureError::Other(e.to_string())),
+            },
             #[allow(unreachable_patterns)]
-            _ => Err(CaptureError::DxgiNotCompiled),
+            _ => Err(CaptureError::Unsupported),
         }
     }
 
@@ -151,12 +128,6 @@ mod tests {
     fn capture_error_display_is_readable() {
         let e = CaptureError::Timeout;
         assert!(e.to_string().contains("timed out"));
-    }
-
-    #[test]
-    fn dxgi_not_compiled_error_is_actionable() {
-        let e = CaptureError::DxgiNotCompiled;
-        assert!(e.to_string().contains("windows-capture"));
     }
 }
 
