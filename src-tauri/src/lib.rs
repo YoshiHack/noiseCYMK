@@ -183,6 +183,17 @@ pub mod commands {
         Ok(())
     }
 
+    /// Probe a single device with a battery of Govee LAN patterns and
+    /// return a structured report. Used by the UI's "Diagnose" button
+    /// so the user can see *why* discovery isn't finding devices.
+    #[tauri::command]
+    pub async fn diagnose_device(ip: String) -> Result<crate::govee::diagnostics::ProbeReport, String> {
+        let parsed: std::net::IpAddr = ip
+            .parse()
+            .map_err(|e| format!("invalid IP address {ip:?}: {e}"))?;
+        Ok(crate::govee::diagnostics::diagnose(parsed).await)
+    }
+
     /// Pretend the sampler ran on a test fixture — used by the UI in dev
     /// to show what color zones would produce without needing a real DXGI
     /// capture yet.
@@ -208,6 +219,7 @@ pub fn run() {
             commands::start_effect,
             commands::stop_effect,
             commands::preview_sample,
+            commands::diagnose_device,
         ])
         .run(tauri::generate_context!())
         .expect("error while running NoiseCMYK");

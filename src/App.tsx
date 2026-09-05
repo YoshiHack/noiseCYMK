@@ -1,4 +1,5 @@
 import { DeviceList } from "./components/DeviceList";
+import { Diagnostics } from "./components/Diagnostics";
 import { EffectPicker } from "./components/EffectPicker";
 import { Settings } from "./components/Settings";
 
@@ -19,6 +20,7 @@ export default function App() {
 
       <main className="space-y-6">
         <DeviceList />
+        <Diagnostics />
         <EffectPicker />
         <Settings />
       </main>

@@ -20,7 +20,7 @@ Phase 0 / Phase 1 / Phase 2 complete:
 - ✅ Gamma-correct color-zone sampler (the #1 ambient-light bug)
 - ✅ Effects engine: solid, breathing, rainbow, screen_sync
 - ✅ Tauri IPC + React frontend (devices, colors, brightness, power, effects)
-- ✅ **Real DXGI Desktop Duplication capture (Windows)** + `xcap` fallback (Linux/macOS)
+- ✅ **Cross-platform screen capture** via `xcap` (Linux/macOS) and `screenshots` (Windows) — both produce BGRA frames without dragging in the full `windows` crate
 - ✅ **CMYK channel decomposition** — each device gets a different printer channel
 - ✅ Live screen-sync scheduler (tokio task, configurable FPS)
 - ⏳ LAN HTTP control server (opt-in, bearer-token) — Phase 5
