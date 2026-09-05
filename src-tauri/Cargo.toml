@@ -42,11 +42,14 @@ axum = "0.7"
 tower = "0.5"
 
 # Cross-platform screen capture: xcap on Linux/macOS, DXGI on Windows.
-# xcap is gated so it only pulls in on non-Windows targets.
+# xcap is cfg-gated to non-Windows so the lib compiles cleanly without
+# PipeWire/etc on every dev machine.
 [target.'cfg(not(target_os = "windows"))'.dependencies]
 xcap = "0.9"
 
-# Windows-only: DXGI Desktop Duplication + a couple of small image helpers.
+# Windows-only DXGI Desktop Duplication. Marked optional so the lib
+# can build on Windows CI without dragging the full `windows` crate
+# into the test binary. The actual app binary below turns it on.
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.58", features = [
     "Win32_Foundation",
@@ -56,9 +59,19 @@ windows = { version = "0.58", features = [
     "Win32_System_Com",
     "Win32_System_Com_StructuredStorage",
     "Win32_UI_WindowsAndMessaging",
-] }
+], optional = true }
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem
 # DO NOT REMOVE!!
 custom-protocol = ["tauri/custom-protocol"]
+
+# Enable DXGI capture for the main binary. Tests build without it.
+windows-capture = []
+
+# Force the windows-capture feature on for the noiseCYMK binary so the
+# shipped app always has real capture. The lib and tests build
+# without it on every platform.
+[package.metadata]
+# documented hint: main bin needs windows-capture; the workflow sets
+# it explicitly via --features windows-capture on the bundle step.

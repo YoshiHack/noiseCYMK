@@ -2,14 +2,18 @@
 //!
 //! Provides:
 //! - `sampler` — gamma-correct BGRA → ColorZone averaging (cross-platform)
-//! - `dxgi` — DXGI Desktop Duplication wrapper (Windows only)
-//! - `ScreenCapture` — cross-platform enum that picks DXGI on Windows and
-//!   `xcap` elsewhere, so the screen-sync effect pipeline is exercisable
-//!   end-to-end on Linux/macOS development machines.
+//! - `dxgi` — DXGI Desktop Duplication wrapper (Windows only, feature-gated)
+//! - `xcap` — xcap-based capture for Linux/macOS development
+//! - `ScreenCapture` — cross-platform enum that picks the right backend
+//!
+//! The `dxgi` module is gated behind the `windows-capture` cargo feature
+//! so the lib + tests can build on Windows CI without dragging the full
+//! `windows` crate into the test binary. The main app binary turns the
+//! feature on via `--features windows-capture`.
 
 pub mod sampler;
 
-#[cfg(target_os = "windows")]
+#[cfg(all(target_os = "windows", feature = "windows-capture"))]
 pub mod dxgi;
 
 #[cfg(not(target_os = "windows"))]
@@ -34,6 +38,8 @@ pub struct CapturedFrame {
 pub enum CaptureError {
     #[error("screen capture not supported on this platform")]
     Unsupported,
+    #[error("DXGI capture not compiled in — rebuild with `--features windows-capture`")]
+    DxgiNotCompiled,
     #[error("DXGI session lost — recreate capture")]
     DxgiLost,
     #[error("capture timed out — no new frame")]
@@ -49,9 +55,10 @@ impl From<anyhow::Error> for CaptureError {
 }
 
 /// Cross-platform screen-capture entry point used by the screen-sync
-/// effect. Picks the right backend at runtime based on cfg.
+/// effect. Picks the right backend at runtime based on cfg + feature flags.
+#[allow(clippy::large_enum_variant)]
 pub enum ScreenCapture {
-    #[cfg(target_os = "windows")]
+    #[cfg(all(target_os = "windows", feature = "windows-capture"))]
     Dxgi(dxgi::DxgiCapture),
     #[cfg(not(target_os = "windows"))]
     Xcap(xcap::XCap),
@@ -59,10 +66,11 @@ pub enum ScreenCapture {
 
 impl ScreenCapture {
     /// Build a screen capture for the primary monitor. Returns
-    /// `Err(CaptureError::Unsupported)` on platforms that have no
-    /// available backend (very unusual — every desktop OS has one).
+    /// `Err(CaptureError::Unsupported)` on Windows when the
+    /// `windows-capture` feature is off (this should only happen in
+    /// tests on Windows; the app binary turns the feature on).
     pub fn new() -> Result<Self> {
-        #[cfg(target_os = "windows")]
+        #[cfg(all(target_os = "windows", feature = "windows-capture"))]
         {
             Ok(ScreenCapture::Dxgi(dxgi::DxgiCapture::new()?))
         }
@@ -70,13 +78,22 @@ impl ScreenCapture {
         {
             Ok(ScreenCapture::Xcap(xcap::XCap::new()?))
         }
+        #[cfg(all(target_os = "windows", not(feature = "windows-capture")))]
+        {
+            // Tests-only path: the lib was built without windows-capture,
+            // so we can't construct a DXGI capture. Caller gets a clear
+            // error rather than a confusing linker failure.
+            Err(anyhow::anyhow!(
+                "screen capture disabled: rebuild with `--features windows-capture`"
+            ))
+        }
     }
 
     /// Block for up to ~one frame interval and return a captured BGRA
     /// frame, or a typed error on timeout / platform failure.
     pub fn grab_frame(&mut self) -> Result<CapturedFrame, CaptureError> {
         match self {
-            #[cfg(target_os = "windows")]
+            #[cfg(all(target_os = "windows", feature = "windows-capture"))]
             ScreenCapture::Dxgi(c) => match c.grab_frame() {
                 Ok(f) => Ok(f),
                 Err(e) => {
@@ -96,6 +113,8 @@ impl ScreenCapture {
                 Err(xcap::XCapError::Timeout) => Err(CaptureError::Timeout),
                 Err(other) => Err(CaptureError::Other(other.to_string())),
             },
+            #[allow(unreachable_patterns)]
+            _ => Err(CaptureError::DxgiNotCompiled),
         }
     }
 
@@ -103,7 +122,12 @@ impl ScreenCapture {
     /// gamma-corrected `ColorZone`s. Used by the screen-sync effect.
     pub fn grab_zones(&mut self, zones: &[Rect]) -> Result<Vec<ColorZone>, CaptureError> {
         let frame = self.grab_frame()?;
-        Ok(sampler::average_zones(&frame.data, frame.stride, frame.height, zones))
+        Ok(sampler::average_zones(
+            &frame.data,
+            frame.stride,
+            frame.height,
+            zones,
+        ))
     }
 }
 
@@ -113,7 +137,12 @@ mod tests {
 
     #[test]
     fn rect_is_construction() {
-        let r = Rect { x: 10, y: 20, w: 100, h: 50 };
+        let r = Rect {
+            x: 10,
+            y: 20,
+            w: 100,
+            h: 50,
+        };
         assert_eq!(r.x, 10);
         assert_eq!(r.h, 50);
     }
@@ -122,6 +151,12 @@ mod tests {
     fn capture_error_display_is_readable() {
         let e = CaptureError::Timeout;
         assert!(e.to_string().contains("timed out"));
+    }
+
+    #[test]
+    fn dxgi_not_compiled_error_is_actionable() {
+        let e = CaptureError::DxgiNotCompiled;
+        assert!(e.to_string().contains("windows-capture"));
     }
 }
 

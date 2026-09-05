@@ -59,7 +59,9 @@ jobs:
 
       # Cross-platform lib + tests. Confirms the Govee LAN protocol,
       # capabilities map, sampler (gamma-correct), effects, and CMYK
-      # decomposition are all green on Windows MSVC.
+      # decomposition are all green on Windows MSVC. Runs without the
+      # `windows-capture` feature so the DXGI module is not compiled
+      # in this step — keeps the test build small and portable.
       - name: Run cargo test (lib only, no Tauri build)
         working-directory: src-tauri
         shell: bash
@@ -96,8 +98,8 @@ jobs:
           set -x
           echo "=== cargo-tauri version ==="
           cargo tauri --version
-          echo "=== cargo build --release (the binary itself) ==="
-          cargo build --release 2>&1 | tail -40
+          echo "=== cargo build --release with windows-capture ==="
+          cargo build --release --features windows-capture 2>&1 | tail -40
           echo "=== looking for exe ==="
           find src-tauri/target/release -maxdepth 2 -name "noiseCYMK.exe" 2>&1 || true
           ls -la src-tauri/target/release/ 2>&1 | head -40 || true
@@ -110,8 +112,8 @@ jobs:
         run: |
           set -euo pipefail
           set -x
-          echo "=== running cargo tauri build (msi + nsis) ==="
-          cargo tauri build --bundles msi nsis 2>&1 | tee /tmp/tauri-build.log | tail -200 || {
+          echo "=== running cargo tauri build (msi + nsis) with windows-capture ==="
+          cargo tauri build --bundles msi nsis --features windows-capture 2>&1 | tee /tmp/tauri-build.log | tail -200 || {
             echo "TAURI BUILD FAILED"
             echo "=== last 300 lines of tauri log ==="
             tail -300 /tmp/tauri-build.log
