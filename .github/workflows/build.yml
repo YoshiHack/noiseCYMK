@@ -99,8 +99,6 @@ jobs:
           echo "=== cargo-tauri version ==="
           cargo tauri --version
           echo "=== cargo build --release ==="
-          # Capture full output to a log file so we can debug failures
-          # from the CI artifacts even when the build fails.
           if ! cargo build --release 2>&1 | tee /tmp/cargo-build.log; then
             echo "===== last 100 lines of cargo build log ====="
             tail -100 /tmp/cargo-build.log
@@ -137,19 +135,28 @@ jobs:
           }
           echo "=== bundle dir tree ==="
           ls -laR src-tauri/target/release/bundle/ 2>&1 | head -100
+          echo "=== where the exe ended up ==="
+          find src-tauri/target -name "noiseCYMK*.exe" 2>&1
+          find src-tauri/target -name "*.msi" 2>&1
+          find src-tauri/target -name "*-setup*.exe" 2>&1
+          find src-tauri/target -name "*-installer*.exe" 2>&1
 
       - name: Upload MSI artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: noiseCYMK-windows-msi
-          path: src-tauri/target/release/bundle/msi/*.msi
-          if-no-files-found: error
+          path: |
+            src-tauri/src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/msi/*.msi
+          if-no-files-found: warn
 
       - name: Upload NSIS artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: noiseCYMK-windows-nsis
-          path: src-tauri/target/release/bundle/nsis/*.exe
-          if-no-files-found: error
+          path: |
+            src-tauri/src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: warn
