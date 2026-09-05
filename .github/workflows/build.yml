@@ -98,11 +98,27 @@ jobs:
           set -x
           echo "=== cargo-tauri version ==="
           cargo tauri --version
-          echo "=== cargo build --release with windows-capture ==="
-          cargo build --release --features windows-capture 2>&1 | tail -40
+          echo "=== cargo build --release ==="
+          # Capture full output to a log file so we can debug failures
+          # from the CI artifacts even when the build fails.
+          if ! cargo build --release 2>&1 | tee /tmp/cargo-build.log; then
+            echo "===== last 100 lines of cargo build log ====="
+            tail -100 /tmp/cargo-build.log
+            echo "===== full cargo build log as artifact ====="
+            cp /tmp/cargo-build.log /tmp/cargo-build-failure.log
+            exit 1
+          fi
           echo "=== looking for exe ==="
           find src-tauri/target/release -maxdepth 2 -name "noiseCYMK.exe" 2>&1 || true
           ls -la src-tauri/target/release/ 2>&1 | head -40 || true
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-build-failure-log
+          path: /tmp/cargo-build-failure.log
+          if-no-files-found: ignore
 
       - name: Run Tauri bundle
         working-directory: src-tauri
@@ -112,8 +128,8 @@ jobs:
         run: |
           set -euo pipefail
           set -x
-          echo "=== running cargo tauri build (msi + nsis) with windows-capture ==="
-          cargo tauri build --bundles msi nsis --features windows-capture 2>&1 | tee /tmp/tauri-build.log | tail -200 || {
+          echo "=== running cargo tauri build (msi + nsis) ==="
+          cargo tauri build --bundles msi nsis 2>&1 | tee /tmp/tauri-build.log | tail -200 || {
             echo "TAURI BUILD FAILED"
             echo "=== last 300 lines of tauri log ==="
             tail -300 /tmp/tauri-build.log
