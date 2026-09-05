@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "LightSync",
+  "productName": "NoiseCMYK",
   "version": "0.1.0",
-  "identifier": "dev.jacksonhughes.lightsync",
+  "identifier": "dev.jacksonhughes.noisecmyk",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:5173",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "LightSync",
+        "title": "NoiseCMYK",
         "width": 1100,
         "height": 720,
         "minWidth": 800,

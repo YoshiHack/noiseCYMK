@@ -1,10 +1,15 @@
 //! Effect engine: maps abstract effects to per-frame color decisions
 //! for a set of devices.
 //!
-//! Cross-platform. DXGI-driven screen sync lives in `capture::sampler`,
-//! which produces a `Vec<ColorZone>` that `screen_sync.rs` consumes.
+//! Cross-platform. Screen capture is DXGI on Windows and `xcap` on
+//! Linux/macOS — both produce a BGRA frame that the sampler averages
+//! into `ColorZone`s. The screen-sync scheduler in `scheduler.rs` then
+//! runs CMYK decomposition to drive each device with a different
+//! channel.
 
+pub mod cmyk;
 pub mod rainbow;
+pub mod scheduler;
 pub mod screen_sync;
 pub mod solid;
 

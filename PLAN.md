@@ -1,6 +1,8 @@
-# LightSync — SignalRGB Replacement for Govee (Windows, Self-Hosted)
+# NoiseCMYK — SignalRGB Replacement for Govee (Windows, Self-Hosted)
 
-> **Working title only — name TBD.** This is a from-scratch RGB controller designed around the gaps in SignalRGB's Govee integration.
+> **CMYK-mapped ambient lighting.** Each device reacts to a different printer
+> channel of the on-screen image (Cyan / Magenta / Yellow / Key-black). Four
+> Govee lights become a printer for whatever's on your screen.
 
 **Goal:** A lightweight Windows desktop app that controls Govee Wi-Fi lights (and any other RGB peripherals you add later) over the local network — no cloud dependency, no subscription, no conflicts with the Govee Home app — with screen-color sampling for ambient lighting.
 

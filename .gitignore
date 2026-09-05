@@ -6,6 +6,7 @@ tsconfig.tsbuildinfo
 
 # Rust / Tauri
 src-tauri/target/
+src-tauri/target-win/
 src-tauri/Cargo.lock
 src-tauri/gen/
 

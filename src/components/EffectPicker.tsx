@@ -21,7 +21,7 @@ export function EffectPicker() {
             { kind: "solid", label: "Solid", preview: "#7dd3fc" },
             { kind: "breathing", label: "Breathing", preview: "#a78bfa" },
             { kind: "rainbow", label: "Rainbow", preview: "linear-gradient(90deg,#ef4444,#f59e0b,#10b981,#06b6d4,#6366f1,#ec4899)" },
-            { kind: "screen_sync", label: "Screen sync", preview: "#0b0d10" },
+            { kind: "screen_sync", label: "Screen sync (CMYK)", preview: "linear-gradient(90deg,#06b6d4,#ec4899,#facc15,#0f172a)" },
           ] as const
         ).map((opt) => {
           const active = effect.kind === opt.kind;
@@ -56,7 +56,9 @@ export function EffectPicker() {
         })}
       </div>
       <p className="mt-3 text-xs text-slate-500">
-        Screen sync requires DXGI capture (Phase 2 — currently in preview).
+        Screen sync drives each light with a different CMYK channel of the
+        on-screen image (Cyan / Magenta / Yellow / Key). Configure which
+        device gets which channel by re-ordering your device list.
       </p>
     </div>
   );

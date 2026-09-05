@@ -7,9 +7,9 @@ export default function App() {
     <div className="min-h-full bg-bg-base p-6 text-slate-100">
       <header className="mb-6 flex items-baseline justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">LightSync</h1>
+          <h1 className="text-2xl font-bold tracking-tight">NoiseCMYK</h1>
           <p className="text-xs text-slate-400">
-            Local Govee control — replacement for SignalRGB.
+            CMYK-mapped Govee ambient lighting — SignalRGB replacement.
           </p>
         </div>
         <span className="rounded-md border border-slate-700 px-2 py-0.5 text-[10px] uppercase tracking-wider text-slate-400">

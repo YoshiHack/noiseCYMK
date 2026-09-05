@@ -1,4 +1,4 @@
-//! LightSync core library.
+//! NoiseCMYK core library.
 //!
 //! Cross-platform where it can be; DXGI-based screen capture and the
 //! LAN HTTP server are Windows-only and feature-gated so the rest of
@@ -128,21 +128,55 @@ pub mod commands {
         Ok((dev.ip, dev.capabilities.clone()))
     }
 
-    // Effect commands are stubs for Phase 0; full engine comes in Phase 3.
+    // Effect commands wire into the screen-sync scheduler when the
+    // chosen effect is ScreenSync; for the simple effects (solid /
+    // breathing / rainbow) we just record the current choice and the
+    // scheduler reads it next tick.
     #[derive(Debug, Deserialize)]
     pub struct StartEffectArgs {
         pub effect: Effect,
     }
 
+    /// Live screen-sync loop handle. Stored on `AppState` so `stop_effect`
+    /// can drop it.
+    static SCREEN_SYNC_LOOP: once_cell::sync::Lazy<
+        parking_lot::Mutex<Option<crate::effects::scheduler::ScreenSyncLoop>>,
+    > = once_cell::sync::Lazy::new(|| parking_lot::Mutex::new(None));
+
     #[tauri::command]
-    pub async fn start_effect(_args: StartEffectArgs) -> Result<(), String> {
-        // Phase 3 wires this into a tokio scheduler. For now we just
-        // verify the effect deserializes correctly.
+    pub async fn start_effect(args: StartEffectArgs, state: State<'_, AppState>) -> Result<(), String> {
+        use crate::capture::sampler::Rect;
+        use crate::effects::scheduler::{ScreenSyncLoop, SyncTarget};
+
+        if matches!(args.effect, Effect::ScreenSync) {
+            // Build a default single full-screen zone and target every
+            // discovered device. Real zone mapping comes from the UI
+            // (Phase 3); for now this proves the end-to-end pipeline.
+            let zones = vec![Rect { x: 0, y: 0, w: 1, h: 1 }];
+            let targets: Vec<SyncTarget> = {
+                let reg = state.devices.read();
+                reg.devices
+                    .values()
+                    .map(|d| SyncTarget {
+                        device_id: d.id.clone(),
+                        ip: d.ip,
+                        supports_colorwc: d.capabilities.color_wc,
+                    })
+                    .collect()
+            };
+
+            let loop_handle = ScreenSyncLoop::start(state.inner().clone(), targets, zones, 30)
+                .map_err(|e| e.to_string())?;
+            *SCREEN_SYNC_LOOP.lock() = Some(loop_handle);
+        }
         Ok(())
     }
 
     #[tauri::command]
     pub async fn stop_effect() -> Result<(), String> {
+        if let Some(handle) = SCREEN_SYNC_LOOP.lock().take() {
+            handle.stop();
+        }
         Ok(())
     }
 
@@ -173,5 +207,5 @@ pub fn run() {
             commands::preview_sample,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running LightSync");
+        .expect("error while running NoiseCMYK");
 }

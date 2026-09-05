@@ -40,17 +40,17 @@ impl Default for Settings {
 }
 
 fn default_data_dir() -> PathBuf {
-    // %APPDATA%/LightSync on Windows, ~/.config/lightsync elsewhere.
+    // %APPDATA%/NoiseCMYK on Windows, ~/.config/noiseCYMK elsewhere.
     #[cfg(target_os = "windows")]
     {
         if let Some(roaming) = std::env::var_os("APPDATA") {
-            return PathBuf::from(roaming).join("LightSync");
+            return PathBuf::from(roaming).join("NoiseCMYK");
         }
     }
     if let Some(home) = dirs_home() {
-        return home.join(".config").join("lightsync");
+        return home.join(".config").join("noiseCYMK");
     }
-    PathBuf::from(".lightsync")
+    PathBuf::from(".noiseCYMK")
 }
 
 fn dirs_home() -> Option<PathBuf> {

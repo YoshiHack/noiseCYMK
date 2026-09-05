@@ -34,6 +34,8 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -41,6 +43,7 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
+            src-tauri/target
           key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
@@ -54,9 +57,17 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      # Cross-platform lib + tests. Confirms the Govee LAN protocol,
+      # capabilities map, sampler (gamma-correct), effects, and CMYK
+      # decomposition are all green on Windows MSVC.
       - name: Run cargo test (lib only, no Tauri build)
         working-directory: src-tauri
-        run: cargo test --lib
+        shell: bash
+        env:
+          CARGO_TARGET_DIR: src-tauri/target
+        run: |
+          set -euo pipefail
+          cargo test --lib 2>&1 | tail -100
 
       - name: Build frontend
         run: npm run build
@@ -68,6 +79,13 @@ jobs:
           ls -la dist/ 2>&1 || { echo "DIST MISSING"; exit 1; }
           ls -la dist/assets/ 2>&1
 
+      # Tauri CLI must be installed before invoking `cargo tauri build`.
+      # We use the stable tauri-cli version matching Tauri 2.
+      - name: Install tauri-cli
+        shell: bash
+        run: |
+          cargo install tauri-cli --version "^2.0" --locked
+
       - name: Build Tauri app (release)
         working-directory: src-tauri
         shell: bash
@@ -76,11 +94,13 @@ jobs:
         run: |
           set -euo pipefail
           set -x
-          echo "=== starting cargo build --release ==="
-          cargo build --release --verbose 2>&1 | tee /tmp/cargo-build.log | tail -100
-          echo "=== build complete, looking for exe ==="
-          find src-tauri/target/release -maxdepth 2 -name "lightsync.exe" 2>&1 || true
-          ls -la src-tauri/target/release/ 2>&1 | head -30 || true
+          echo "=== cargo-tauri version ==="
+          cargo tauri --version
+          echo "=== cargo build --release (the binary itself) ==="
+          cargo build --release 2>&1 | tail -40
+          echo "=== looking for exe ==="
+          find src-tauri/target/release -maxdepth 2 -name "noiseCYMK.exe" 2>&1 || true
+          ls -la src-tauri/target/release/ 2>&1 | head -40 || true
 
       - name: Run Tauri bundle
         working-directory: src-tauri
@@ -90,10 +110,13 @@ jobs:
         run: |
           set -euo pipefail
           set -x
-          echo "=== cargo-tauri version ==="
-          cargo tauri --version 2>&1 || true
-          echo "=== running cargo tauri build ==="
-          cargo tauri build --bundles msi nsis 2>&1 | tee /tmp/tauri-build.log | tail -200 || { echo "TAURI BUILD FAILED"; echo "=== last 300 lines of tauri log ==="; tail -300 /tmp/tauri-build.log; exit 1; }
+          echo "=== running cargo tauri build (msi + nsis) ==="
+          cargo tauri build --bundles msi nsis 2>&1 | tee /tmp/tauri-build.log | tail -200 || {
+            echo "TAURI BUILD FAILED"
+            echo "=== last 300 lines of tauri log ==="
+            tail -300 /tmp/tauri-build.log
+            exit 1
+          }
           echo "=== bundle dir tree ==="
           ls -laR src-tauri/target/release/bundle/ 2>&1 | head -100
 
@@ -101,7 +124,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: lightsync-windows
+          name: noiseCYMK-windows-msi
           path: src-tauri/target/release/bundle/msi/*.msi
           if-no-files-found: error
 
@@ -109,6 +132,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: lightsync-windows-nsis
+          name: noiseCYMK-windows-nsis
           path: src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: error
