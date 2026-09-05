@@ -12,6 +12,15 @@ pub mod state;
 
 use state::AppState;
 
+/// Live screen-sync loop handle. Replaced on each `start_effect`,
+/// dropped (which stops the loop) on `stop_effect`. We store it at
+/// crate root — not inside the `commands` module — so Tauri's
+/// `#[tauri::command]` macro expansion on Windows MSVC doesn't trip
+/// over the nested `static`.
+static SCREEN_SYNC_LOOP: once_cell::sync::Lazy<
+    parking_lot::Mutex<Option<crate::effects::scheduler::ScreenSyncLoop>>,
+> = once_cell::sync::Lazy::new(|| parking_lot::Mutex::new(None));
+
 /// Tauri command surface. Each function is exposed to the React frontend
 /// via `invoke('command_name', { ... })`.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -137,12 +146,6 @@ pub mod commands {
         pub effect: Effect,
     }
 
-    /// Live screen-sync loop handle. Stored on `AppState` so `stop_effect`
-    /// can drop it.
-    static SCREEN_SYNC_LOOP: once_cell::sync::Lazy<
-        parking_lot::Mutex<Option<crate::effects::scheduler::ScreenSyncLoop>>,
-    > = once_cell::sync::Lazy::new(|| parking_lot::Mutex::new(None));
-
     #[tauri::command]
     pub async fn start_effect(args: StartEffectArgs, state: State<'_, AppState>) -> Result<(), String> {
         use crate::capture::sampler::Rect;
@@ -167,14 +170,14 @@ pub mod commands {
 
             let loop_handle = ScreenSyncLoop::start(state.inner().clone(), targets, zones, 30)
                 .map_err(|e| e.to_string())?;
-            *SCREEN_SYNC_LOOP.lock() = Some(loop_handle);
+            crate::SCREEN_SYNC_LOOP.lock().replace(loop_handle);
         }
         Ok(())
     }
 
     #[tauri::command]
     pub async fn stop_effect() -> Result<(), String> {
-        if let Some(handle) = SCREEN_SYNC_LOOP.lock().take() {
+        if let Some(handle) = crate::SCREEN_SYNC_LOOP.lock().take() {
             handle.stop();
         }
         Ok(())
